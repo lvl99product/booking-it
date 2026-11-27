@@ -1,4 +1,4 @@
-# Booking It
+# Deez Books
 
 A mobile-first reading tracker and literary highlight journal built with React, TypeScript, and Vite.
 

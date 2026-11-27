@@ -13,8 +13,8 @@ const StarIcon = ({ filled, size = 18 }: { filled: boolean; size?: number }) => 
     width={size}
     height={size}
     viewBox="0 0 24 24"
-    fill={filled ? '#ffcc00' : 'none'}
-    stroke={filled ? '#ffcc00' : 'currentColor'}
+    fill={filled ? 'var(--star-color)' : 'none'}
+    stroke={filled ? 'var(--star-color)' : 'currentColor'}
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"

@@ -1,10 +1,11 @@
 import type { Book, Quote } from '../types';
 
 const STORAGE_KEYS = {
-  BOOKS: 'booking_it_books',
-  QUOTES: 'booking_it_quotes',
-  READING_DATES: 'booking_it_reading_dates',
-  YEARLY_GOAL: 'booking_it_yearly_goal',
+  BOOKS: 'deez_books_books',
+  QUOTES: 'deez_books_quotes',
+  READING_DATES: 'deez_books_reading_dates',
+  YEARLY_GOAL: 'deez_books_yearly_goal',
+  DISCOVERY_QUOTES: 'deez_books_discovery_quotes',
 };
 
 // Generates high-quality gradient colors for book covers
@@ -31,6 +32,27 @@ export function getLocalDateString(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+export function getBookProgress(book: Book): { percent: number; label: string; hasPercent: boolean } | null {
+  const mode = book.progressMode
+    ?? (book.currentPage !== undefined ? 'pages' : book.progressPercent !== undefined ? 'percent' : undefined);
+
+  if (mode === 'pages' && book.currentPage !== undefined) {
+    const current = Math.max(0, Math.round(book.currentPage));
+    if (book.totalPages && book.totalPages > 0) {
+      const percent = Math.min(100, Math.round((current / book.totalPages) * 100));
+      return { percent, label: `p. ${current} / ${book.totalPages}`, hasPercent: true };
+    }
+    return { percent: 0, label: `p. ${current}`, hasPercent: false };
+  }
+
+  if (mode === 'percent' && book.progressPercent !== undefined) {
+    const percent = Math.min(100, Math.max(0, Math.round(book.progressPercent)));
+    return { percent, label: `${percent}%`, hasPercent: true };
+  }
+
+  return null;
+}
+
 const DEFAULT_BOOKS: Book[] = [
   {
     id: 'book-1',
@@ -40,6 +62,10 @@ const DEFAULT_BOOKS: Book[] = [
     createdAt: Date.now() - 30 * 24 * 60 * 60 * 1000,
     status: 'reading',
     startDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    currentPage: 112,
+    totalPages: 320,
+    progressPercent: 35,
+    progressMode: 'pages',
     thoughts: 'A systems-first approach to identity change and habit stacking. Highly actionable.'
   },
   {
@@ -324,6 +350,10 @@ export const storageService = {
           .map((b: Book) => ({
             ...b,
             coverUrl: typeof b.coverUrl === 'string' && /^https:\/\//i.test(b.coverUrl) ? b.coverUrl : undefined,
+            currentPage: typeof b.currentPage === 'number' && Number.isFinite(b.currentPage) && b.currentPage >= 0 ? b.currentPage : undefined,
+            totalPages: typeof b.totalPages === 'number' && Number.isFinite(b.totalPages) && b.totalPages > 0 ? b.totalPages : undefined,
+            progressPercent: typeof b.progressPercent === 'number' && Number.isFinite(b.progressPercent) ? Math.min(100, Math.max(0, b.progressPercent)) : undefined,
+            progressMode: b.progressMode === 'pages' || b.progressMode === 'percent' ? b.progressMode : undefined,
           }));
         const sanitizedQuotes = data.quotes.filter(
           (q: unknown): q is Quote => Boolean(q && typeof q === 'object' && 'id' in q && 'bookId' in q && 'text' in q)
@@ -337,6 +367,16 @@ export const storageService = {
       console.error('Failed to import data', e);
       return false;
     }
+  },
+
+  getDiscoveryQuotesEnabled(): boolean {
+    const raw = localStorage.getItem(STORAGE_KEYS.DISCOVERY_QUOTES);
+    if (raw === null) return true;
+    return raw !== 'false';
+  },
+
+  setDiscoveryQuotesEnabled(enabled: boolean): void {
+    localStorage.setItem(STORAGE_KEYS.DISCOVERY_QUOTES, String(enabled));
   },
 
   resetToStarter(): void {
@@ -367,6 +407,7 @@ export interface CuratedQuote {
   text: string;
   bookTitle: string;
   author: string;
+  genre: string;
 }
 
 export const CURATED_LITERARY_QUOTES: CuratedQuote[] = [
@@ -374,72 +415,98 @@ export const CURATED_LITERARY_QUOTES: CuratedQuote[] = [
     id: 'curated-1',
     text: 'You never really understand a person until you consider things from his point of view... until you climb into his skin and walk around in it.',
     bookTitle: 'To Kill a Mockingbird',
-    author: 'Harper Lee'
+    author: 'Harper Lee',
+    genre: 'Classic fiction',
   },
   {
     id: 'curated-2',
     text: 'Who controls the past controls the future. Who controls the present controls the past.',
     bookTitle: '1984',
-    author: 'George Orwell'
+    author: 'George Orwell',
+    genre: 'Dystopian classic',
   },
   {
     id: 'curated-3',
     text: 'So we beat on, boats against the current, borne back ceaselessly into the past.',
     bookTitle: 'The Great Gatsby',
-    author: 'F. Scott Fitzgerald'
+    author: 'F. Scott Fitzgerald',
+    genre: 'Literary classic',
   },
   {
     id: 'curated-4',
     text: 'All that is gold does not glitter, not all those who wander are lost; the old that is strong does not wither, deep roots are not reached by the frost.',
     bookTitle: 'The Fellowship of the Ring',
-    author: 'J.R.R. Tolkien'
+    author: 'J.R.R. Tolkien',
+    genre: 'Epic fantasy',
   },
   {
     id: 'curated-5',
     text: 'I must not fear. Fear is the mind-killer. Fear is the little-death that brings total obliteration.',
     bookTitle: 'Dune',
-    author: 'Frank Herbert'
+    author: 'Frank Herbert',
+    genre: 'Sci-fi classic',
   },
   {
     id: 'curated-6',
     text: 'The only way to get rid of a temptation is to yield to it. Resist it, and your soul grows sick with longing.',
     bookTitle: 'The Picture of Dorian Gray',
-    author: 'Oscar Wilde'
+    author: 'Oscar Wilde',
+    genre: 'Gothic fiction',
   },
   {
     id: 'curated-7',
     text: 'Nothing is so painful to the human mind as a great and sudden change.',
     bookTitle: 'Frankenstein',
-    author: 'Mary Shelley'
+    author: 'Mary Shelley',
+    genre: 'Gothic sci-fi',
   },
   {
     id: 'curated-8',
     text: 'All grown-ups were once children... but only few of them remember it.',
     bookTitle: 'The Little Prince',
-    author: 'Antoine de Saint-Exupéry'
+    author: 'Antoine de Saint-Exupéry',
+    genre: 'Philosophical fable',
   },
   {
     id: 'curated-9',
     text: 'I am no bird; and no net ensnares me; I am a free human being with an independent will.',
     bookTitle: 'Jane Eyre',
-    author: 'Charlotte Brontë'
+    author: 'Charlotte Brontë',
+    genre: 'Classic romance',
   },
   {
     id: 'curated-10',
     text: 'It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.',
     bookTitle: 'Pride and Prejudice',
-    author: 'Jane Austen'
+    author: 'Jane Austen',
+    genre: 'Literary classic',
   },
   {
     id: 'curated-11',
-    text: 'It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness...',
-    bookTitle: 'A Tale of Two Cities',
-    author: 'Charles Dickens'
+    text: 'Between stimulus and response there is a space. In that space is our power to choose our response.',
+    bookTitle: "Man's Search for Meaning",
+    author: 'Viktor E. Frankl',
+    genre: 'Psychology & memoir',
   },
   {
     id: 'curated-12',
+    text: 'How we spend our days is, of course, how we spend our lives.',
+    bookTitle: 'The Writing Life',
+    author: 'Annie Dillard',
+    genre: 'Essays & craft',
+  },
+  {
+    id: 'curated-13',
+    text: 'We tell ourselves stories in order to live.',
+    bookTitle: 'The White Album',
+    author: 'Joan Didion',
+    genre: 'Essays',
+  },
+  {
+    id: 'curated-14',
     text: 'We are such stuff as dreams are made on, and our little life is rounded with a sleep.',
     bookTitle: 'The Tempest',
-    author: 'William Shakespeare'
-  }
+    author: 'William Shakespeare',
+    genre: 'Classic drama',
+  },
 ];

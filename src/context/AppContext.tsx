@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { Book, Quote } from '../types';
 import { storageService, getLocalDateString } from '../services/storage';
-import { fetchBookCover } from '../services/coverService';
+import { fetchBookMetadata } from '../services/coverService';
 
 interface ToastMessage {
   id: string;
@@ -24,6 +24,7 @@ interface AppContextValue {
   streak: number;
   yearlyGoal: number;
   hasLoggedToday: boolean;
+  readingDates: string[];
 
   // Toast
   toasts: ToastMessage[];
@@ -48,7 +49,7 @@ interface AppContextValue {
 
   // Goal
   saveGoal: (target: number) => void;
-  logReadingToday: () => void;
+  logReadingToday: (silent?: boolean) => boolean;
   toggleReadingToday: () => void;
 
   // Data helpers
@@ -58,6 +59,10 @@ interface AppContextValue {
   // Export/Import
   handleExport: () => void;
   handleImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
+
+  // Preferences
+  showDiscoveryQuotes: boolean;
+  toggleDiscoveryQuotes: () => void;
 
   // Test data triggers
   resetToStarter: () => void;
@@ -72,20 +77,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [streak, setStreak] = useState(0);
   const [yearlyGoal, setYearlyGoal] = useState(12);
   const [hasLoggedToday, setHasLoggedToday] = useState(false);
+  const [readingDates, setReadingDates] = useState<string[]>([]);
+  const [showDiscoveryQuotes, setShowDiscoveryQuotes] = useState<boolean>(() =>
+    storageService.getDiscoveryQuotesEnabled()
+  );
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmOptions, setConfirmOptions] = useState<ConfirmOptions | null>(null);
-  const attemptedCoverIdsRef = useRef<Set<string>>(new Set());
+  const attemptedMetadataIdsRef = useRef<Set<string>>(new Set());
 
-  const backfillMissingCovers = useCallback(async (targetBooks: Book[]) => {
+  const syncReadingActivity = useCallback(() => {
+    const history = storageService.getReadingHistory();
+    setReadingDates(history);
+    setStreak(storageService.getStreak());
+    setHasLoggedToday(history.includes(getLocalDateString()));
+  }, []);
+
+  const backfillMissingMetadata = useCallback(async (targetBooks: Book[]) => {
     for (const b of targetBooks) {
-      if (b.coverUrl || attemptedCoverIdsRef.current.has(b.id)) continue;
-      attemptedCoverIdsRef.current.add(b.id);
-      const coverUrl = await fetchBookCover(b.title, b.author);
-      if (coverUrl) {
+      if ((b.coverUrl && b.totalPages) || attemptedMetadataIdsRef.current.has(b.id)) continue;
+      attemptedMetadataIdsRef.current.add(b.id);
+      const { coverUrl, totalPages } = await fetchBookMetadata(b.title, b.author);
+      if (coverUrl || totalPages) {
         const latest = storageService.getBooks().find(item => item.id === b.id);
-        if (latest && !latest.coverUrl) {
-          storageService.updateBook({ ...latest, coverUrl });
-          setBooks(storageService.getBooks());
+        if (latest) {
+          const nextCover = latest.coverUrl || coverUrl;
+          const nextPages = latest.totalPages || totalPages;
+          if (nextCover !== latest.coverUrl || nextPages !== latest.totalPages) {
+            storageService.updateBook({ ...latest, coverUrl: nextCover, totalPages: nextPages });
+            setBooks(storageService.getBooks());
+          }
         }
       }
     }
@@ -96,10 +116,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setBooks(initialBooks);
     setQuotes(storageService.getQuotes());
     setYearlyGoal(storageService.getGoal(new Date().getFullYear()));
-    setStreak(storageService.getStreak());
-    setHasLoggedToday(storageService.getReadingHistory().includes(getLocalDateString()));
-    backfillMissingCovers(initialBooks);
-  }, [backfillMissingCovers]);
+    syncReadingActivity();
+    backfillMissingMetadata(initialBooks);
+  }, [backfillMissingMetadata, syncReadingActivity]);
 
   const showToast = useCallback((text: string, type: 'success' | 'error' = 'success') => {
     const id = `toast-${Date.now()}`;
@@ -124,23 +143,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addBook = useCallback((title: string, author: string, status: 'reading' | 'to-read'): Book => {
     const book = storageService.addBook(title, author, status);
     setBooks(storageService.getBooks());
-    setStreak(storageService.getStreak());
-    setHasLoggedToday(storageService.getReadingHistory().includes(getLocalDateString()));
+    syncReadingActivity();
 
-    // Background fetch book cover
-    attemptedCoverIdsRef.current.add(book.id);
-    fetchBookCover(title, author).then(coverUrl => {
-      if (coverUrl) {
+    // Background fetch book cover and total page count
+    attemptedMetadataIdsRef.current.add(book.id);
+    fetchBookMetadata(title, author).then(({ coverUrl, totalPages }) => {
+      if (coverUrl || totalPages) {
         const latest = storageService.getBooks().find(item => item.id === book.id);
         if (latest) {
-          storageService.updateBook({ ...latest, coverUrl });
+          storageService.updateBook({
+            ...latest,
+            coverUrl: latest.coverUrl || coverUrl,
+            totalPages: latest.totalPages || totalPages,
+          });
           setBooks(storageService.getBooks());
         }
       }
     });
 
     return book;
-  }, []);
+  }, [syncReadingActivity]);
 
   const updateBook = useCallback((book: Book) => {
     storageService.updateBook(book);
@@ -156,10 +178,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addQuote = useCallback((data: Omit<Quote, 'id' | 'createdAt'>): Quote => {
     const quote = storageService.addQuote(data);
     setQuotes(storageService.getQuotes());
-    setStreak(storageService.getStreak());
-    setHasLoggedToday(storageService.getReadingHistory().includes(getLocalDateString()));
+    syncReadingActivity();
     return quote;
-  }, []);
+  }, [syncReadingActivity]);
 
   const updateQuote = useCallback((quote: Quote) => {
     storageService.updateQuote(quote);
@@ -181,25 +202,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setYearlyGoal(target);
   }, []);
 
-  const logReadingToday = useCallback(() => {
+  const logReadingToday = useCallback((silent = false): boolean => {
     const logged = storageService.logReadingToday();
-    if (logged) {
-      setStreak(storageService.getStreak());
-      setHasLoggedToday(true);
-      showToast('🔥 Reading logged! Keep the streak alive!');
+    syncReadingActivity();
+    if (logged && !silent) {
+      showToast('Reading logged for today');
     }
-  }, [showToast]);
+    return logged;
+  }, [showToast, syncReadingActivity]);
 
   const toggleReadingToday = useCallback(() => {
     const isLoggedNow = storageService.toggleReadingToday();
-    setStreak(storageService.getStreak());
-    setHasLoggedToday(isLoggedNow);
+    syncReadingActivity();
     if (isLoggedNow) {
-      showToast('🔥 Reading logged! Keep the streak alive!');
+      showToast('Reading logged for today');
     } else {
-      showToast('Log removed for today.');
+      showToast('Log removed for today');
     }
-  }, [showToast]);
+  }, [showToast, syncReadingActivity]);
 
   const getBookById = useCallback((id: string) => books.find(b => b.id === id), [books]);
 
@@ -208,7 +228,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleExport = useCallback(() => {
     const dataStr = storageService.exportData();
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    const exportFileDefaultName = `booking_it_backup_${getLocalDateString()}.json`;
+    const exportFileDefaultName = `deez_books_backup_${getLocalDateString()}.json`;
     const link = document.createElement('a');
     link.setAttribute('href', dataUri);
     link.setAttribute('download', exportFileDefaultName);
@@ -226,42 +246,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (success) {
           setBooks(storageService.getBooks());
           setQuotes(storageService.getQuotes());
-          setStreak(storageService.getStreak());
+          syncReadingActivity();
           showToast('Data imported successfully!');
         } else {
           showToast('Failed to import — check the JSON file.', 'error');
         }
       };
     }
+  }, [showToast, syncReadingActivity]);
+
+  const toggleDiscoveryQuotes = useCallback(() => {
+    setShowDiscoveryQuotes(prev => {
+      const next = !prev;
+      storageService.setDiscoveryQuotesEnabled(next);
+      showToast(next ? 'Discovery quotes turned on' : 'Discovery quotes turned off');
+      return next;
+    });
   }, [showToast]);
 
   const resetToStarter = useCallback(() => {
-    attemptedCoverIdsRef.current.clear();
+    attemptedMetadataIdsRef.current.clear();
     storageService.resetToStarter();
     setBooks([]);
     setQuotes([]);
     setStreak(0);
     setYearlyGoal(12);
     setHasLoggedToday(false);
+    setReadingDates([]);
     showToast('App reset to clean starter state');
   }, [showToast]);
 
   const resetToTestData = useCallback(() => {
-    attemptedCoverIdsRef.current.clear();
+    attemptedMetadataIdsRef.current.clear();
     storageService.resetToTestData();
     const loadedBooks = storageService.getBooks();
     setBooks(loadedBooks);
     setQuotes(storageService.getQuotes());
     setYearlyGoal(storageService.getGoal(new Date().getFullYear()));
-    setStreak(storageService.getStreak());
-    setHasLoggedToday(storageService.getReadingHistory().includes(getLocalDateString()));
+    syncReadingActivity();
     showToast('Loaded demo test data (5-day streak)');
-    backfillMissingCovers(loadedBooks);
-  }, [showToast, backfillMissingCovers]);
+    backfillMissingMetadata(loadedBooks);
+  }, [showToast, backfillMissingMetadata, syncReadingActivity]);
 
   return (
     <AppContext.Provider value={{
-      books, quotes, streak, yearlyGoal, hasLoggedToday,
+      books, quotes, streak, yearlyGoal, hasLoggedToday, readingDates,
       toasts, showToast, dismissToast,
       confirmOptions, showConfirm, dismissConfirm,
       addBook, updateBook, deleteBook,
@@ -269,6 +298,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveGoal, logReadingToday, toggleReadingToday,
       getBookById, getQuotesByBook,
       handleExport, handleImport,
+      showDiscoveryQuotes, toggleDiscoveryQuotes,
       resetToStarter, resetToTestData,
     }}>
       {children}

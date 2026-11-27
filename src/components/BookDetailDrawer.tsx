@@ -46,6 +46,8 @@ export function BookDetailDrawer({ book, onClose }: BookDetailDrawerProps) {
   const [editEndDate, setEditEndDate] = useState(book.endDate || '');
   const [editRating, setEditRating] = useState(book.rating || 0);
   const [editThoughts, setEditThoughts] = useState(book.thoughts || '');
+  const [editCurrentPage, setEditCurrentPage] = useState(book.currentPage !== undefined ? String(book.currentPage) : '');
+  const [editTotalPages, setEditTotalPages] = useState(book.totalPages !== undefined ? String(book.totalPages) : '');
 
   useEffect(() => {
     setEditStatus(book.status);
@@ -53,6 +55,8 @@ export function BookDetailDrawer({ book, onClose }: BookDetailDrawerProps) {
     setEditEndDate(book.endDate || '');
     setEditRating(book.rating || 0);
     setEditThoughts(book.thoughts || '');
+    setEditCurrentPage(book.currentPage !== undefined ? String(book.currentPage) : '');
+    setEditTotalPages(book.totalPages !== undefined ? String(book.totalPages) : '');
   }, [book]);
 
   const bookQuotes = getQuotesByBook(book.id);
@@ -60,6 +64,19 @@ export function BookDetailDrawer({ book, onClose }: BookDetailDrawerProps) {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedTotal = editTotalPages.trim() ? parseInt(editTotalPages, 10) : undefined;
+    const parsedCurrent = editCurrentPage.trim() ? parseInt(editCurrentPage, 10) : undefined;
+    const validTotal = parsedTotal && parsedTotal > 0 ? parsedTotal : undefined;
+    const validCurrent = parsedCurrent !== undefined && !isNaN(parsedCurrent)
+      ? (validTotal ? Math.min(validTotal, Math.max(0, parsedCurrent)) : Math.max(0, parsedCurrent))
+      : undefined;
+
+    const nextPercent = editStatus === 'finished'
+      ? 100
+      : validCurrent !== undefined && validTotal
+        ? Math.min(100, Math.round((validCurrent / validTotal) * 100))
+        : book.progressPercent;
+
     updateBook({
       ...book,
       status: editStatus,
@@ -67,6 +84,10 @@ export function BookDetailDrawer({ book, onClose }: BookDetailDrawerProps) {
       endDate: editStatus === 'finished' ? (editEndDate || getLocalDateString()) : undefined,
       rating: editStatus === 'finished' ? editRating : undefined,
       thoughts: editThoughts || undefined,
+      totalPages: validTotal,
+      currentPage: editStatus === 'finished' ? (validTotal ?? validCurrent) : validCurrent,
+      progressPercent: nextPercent,
+      progressMode: validCurrent !== undefined ? 'pages' : book.progressMode,
     });
     showToast('Book updated');
     onClose();
@@ -106,7 +127,7 @@ export function BookDetailDrawer({ book, onClose }: BookDetailDrawerProps) {
               <p className="drawer-subtitle">by {book.author}</p>
               {duration && editStatus !== 'to-read' && (
                 <p className="drawer-reading-duration">
-                  {editStatus === 'finished' ? '✓ Read in ' : '⏱ Reading for '}
+                  {editStatus === 'finished' ? 'Read in ' : 'Reading for '}
                   <strong>{duration}</strong>
                 </p>
               )}
@@ -127,21 +148,21 @@ export function BookDetailDrawer({ book, onClose }: BookDetailDrawerProps) {
                 onClick={() => setEditStatus('to-read')}
                 className={`status-toggle-btn ${editStatus === 'to-read' ? 'active' : ''}`}
               >
-                📚 Want to Read
+                Want to read
               </button>
               <button
                 type="button"
                 onClick={() => setEditStatus('reading')}
                 className={`status-toggle-btn ${editStatus === 'reading' ? 'active' : ''}`}
               >
-                📖 Reading Now
+                Reading now
               </button>
               <button
                 type="button"
                 onClick={() => setEditStatus('finished')}
                 className={`status-toggle-btn ${editStatus === 'finished' ? 'active' : ''}`}
               >
-                ✓ Finished
+                Finished
               </button>
             </div>
           </div>
@@ -166,6 +187,36 @@ export function BookDetailDrawer({ book, onClose }: BookDetailDrawerProps) {
                 value={editEndDate}
                 disabled={editStatus !== 'finished'}
                 onChange={e => setEditEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-12)', marginBottom: 'var(--space-16)' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="edit-current-page" className="form-label">Current Page</label>
+              <input
+                id="edit-current-page"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="e.g. 142"
+                className="form-input"
+                disabled={editStatus === 'to-read'}
+                value={editCurrentPage}
+                onChange={e => setEditCurrentPage(e.target.value.replace(/\D/g, '').slice(0, 5))}
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="edit-total-pages" className="form-label">Total Pages</label>
+              <input
+                id="edit-total-pages"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="e.g. 320"
+                className="form-input"
+                value={editTotalPages}
+                onChange={e => setEditTotalPages(e.target.value.replace(/\D/g, '').slice(0, 5))}
               />
             </div>
           </div>

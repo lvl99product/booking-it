@@ -4,8 +4,8 @@ import { useAppContext } from '../context/AppContext';
 import { BookCover } from './BookCover';
 
 const HeartIcon = ({ filled }: { filled: boolean }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-    fill={filled ? '#ff3b30' : 'none'} stroke={filled ? '#ff3b30' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+    fill={filled ? 'var(--ribbon-color)' : 'none'} stroke={filled ? 'var(--ribbon-color)' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
   </svg>
 );
@@ -81,9 +81,6 @@ export function QuoteCard({ quote, onTagClick }: QuoteCardProps) {
     });
   };
 
-  // Derive accent color from book cover
-  const accentColor = 'var(--accent-color)';
-
   return (
     <div className="quote-card glass-card">
       {isEditing ? (
@@ -120,9 +117,9 @@ export function QuoteCard({ quote, onTagClick }: QuoteCardProps) {
         </div>
       ) : (
         <>
-          <div className="quote-card-accent" style={{ background: accentColor }} />
+          <div className="quote-card-accent" />
           <div className="quote-card-body">
-            <blockquote className="quote-text">{quote.text}</blockquote>
+            <blockquote className="quote-text">&ldquo;{quote.text}&rdquo;</blockquote>
 
             <div className="quote-source">
               {book && (
@@ -136,10 +133,10 @@ export function QuoteCard({ quote, onTagClick }: QuoteCardProps) {
               )}
               <div className="quote-source-info">
                 <div className="quote-book-title">{book?.title ?? 'Unknown Book'}</div>
-                <div className="quote-book-author">by {book?.author ?? 'Unknown'}</div>
+                <div className="quote-book-author">{book?.author ?? 'Unknown'}</div>
                 {(quote.chapter || quote.page) && (
                   <div className="quote-location">
-                    {quote.chapter}{quote.chapter && quote.page && ' · '}{quote.page && `p. ${quote.page}`}
+                    {quote.chapter}{quote.chapter && quote.page && ', '}{quote.page && `p. ${quote.page}`}
                   </div>
                 )}
               </div>

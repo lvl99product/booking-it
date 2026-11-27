@@ -10,6 +10,10 @@ export interface Book {
   endDate?: string;   // YYYY-MM-DD
   rating?: number;    // 0 to 5 stars
   thoughts?: string;  // personal notes/review
+  currentPage?: number;
+  totalPages?: number;
+  progressPercent?: number; // 0 to 100
+  progressMode?: 'pages' | 'percent';
 }
 
 export interface ReadingGoal {

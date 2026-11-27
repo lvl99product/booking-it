@@ -84,14 +84,14 @@ export function AddBookDrawer({ initialStatus = 'to-read', onClose, onAdded }: A
                 onClick={() => setStatus('to-read')}
                 className={`status-toggle-btn ${status === 'to-read' ? 'active' : ''}`}
               >
-                📚 Want to Read
+                Want to read
               </button>
               <button
                 type="button"
                 onClick={() => setStatus('reading')}
                 className={`status-toggle-btn ${status === 'reading' ? 'active' : ''}`}
               >
-                📖 Reading Now
+                Reading now
               </button>
             </div>
           </div>

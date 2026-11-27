@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { QuoteCard } from './QuoteCard';
+import { DiscoveryQuoteCard } from './DiscoveryQuoteCard';
 
 const SearchIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -9,8 +10,8 @@ const SearchIcon = () => (
 );
 
 const HeartIcon = ({ filled }: { filled: boolean }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
-    fill={filled ? '#ff3b30' : 'none'} stroke={filled ? '#ff3b30' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+    fill={filled ? 'var(--ribbon-color)' : 'none'} stroke={filled ? 'var(--ribbon-color)' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
   </svg>
 );
@@ -31,7 +32,7 @@ const SORT_LABELS: Record<SortOption, string> = {
 };
 
 export function HighlightsTab() {
-  const { quotes, books, getBookById } = useAppContext();
+  const { quotes, books, getBookById, showDiscoveryQuotes } = useAppContext();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
@@ -135,23 +136,23 @@ export function HighlightsTab() {
         <div className="filter-chips">
           {selectedBookId && (
             <span className="filter-chip">
-              📖 {getBookById(selectedBookId)?.title}
-              <button onClick={() => setSelectedBookId(null)} className="filter-chip-remove" aria-label="Remove book filter">×</button>
+              {getBookById(selectedBookId)?.title}
+              <button type="button" onClick={() => setSelectedBookId(null)} className="filter-chip-remove" aria-label="Remove book filter">×</button>
             </span>
           )}
           {selectedTag && (
             <span className="filter-chip">
               #{selectedTag}
-              <button onClick={() => setSelectedTag(null)} className="filter-chip-remove" aria-label="Remove tag filter">×</button>
+              <button type="button" onClick={() => setSelectedTag(null)} className="filter-chip-remove" aria-label="Remove tag filter">×</button>
             </span>
           )}
           {favoriteOnly && (
             <span className="filter-chip filter-chip--heart">
-              ❤️ Favorites
-              <button onClick={() => setFavoriteOnly(false)} className="filter-chip-remove" aria-label="Remove favorites filter">×</button>
+              Favorites
+              <button type="button" onClick={() => setFavoriteOnly(false)} className="filter-chip-remove" aria-label="Remove favorites filter">×</button>
             </span>
           )}
-          <button onClick={clearAllFilters} className="clear-filters-btn">Clear all</button>
+          <button type="button" onClick={clearAllFilters} className="clear-filters-btn">Clear all</button>
         </div>
       )}
 
@@ -162,6 +163,7 @@ export function HighlightsTab() {
             {allTags.map(tag => (
               <button
                 key={tag}
+                type="button"
                 onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
                 className={`tag tag--btn ${selectedTag === tag ? 'active' : ''}`}
                 role="listitem"
@@ -177,7 +179,7 @@ export function HighlightsTab() {
       {/* Quote count */}
       <div className="highlights-count">
         {filteredQuotes.length} highlight{filteredQuotes.length !== 1 ? 's' : ''}
-        {hasActiveFilters && ` · filtered`}
+        {hasActiveFilters && ' (filtered)'}
       </div>
 
       {/* Quote list */}
@@ -194,10 +196,20 @@ export function HighlightsTab() {
           <div className="empty-state">
             <HighlightsIcon />
             <h3>No highlights found</h3>
-            <p>{hasActiveFilters ? 'Try clearing some filters.' : 'Scribe your first highlight from the Home tab.'}</p>
+            <p>{hasActiveFilters ? 'Try clearing one of your active filters.' : 'Save your first highlight from the Home tab.'}</p>
           </div>
         )}
       </div>
+
+      {/* Distinct Book Discovery section (when enabled and not filtering) */}
+      {showDiscoveryQuotes && !hasActiveFilters && (
+        <section className="highlights-discovery-section" aria-label="Discover your next read">
+          <div className="highlights-discovery-divider">
+            <span>From outside your library</span>
+          </div>
+          <DiscoveryQuoteCard seedOffset={4} showDisableLink />
+        </section>
+      )}
     </div>
   );
 }
